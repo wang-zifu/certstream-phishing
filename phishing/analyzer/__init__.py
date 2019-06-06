@@ -1,1 +1,1 @@
-from phishing.analyzer.analyzer import Analyzer
+from phishing.analyzer.analyzer import analyze

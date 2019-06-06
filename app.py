@@ -1,5 +1,4 @@
-from phishing.analyzer import Analyzer
+from phishing.analyzer import analyze
 
 if __name__ == "__main__":
-    analyzer = Analyzer()
-    analyzer.analyze()
+    analyze()

@@ -1,37 +1,37 @@
 import certstream
 
 from functools import partial
-from phishing.analyzer.classifier import Classifier
+from phishing.analyzer.scanner import connect_to_domain
+from phishing.analyzer.classifier import score_recovered_data
 
-class Analyzer:
-    def __init__(self):
-        self.scoring = Classifier()
+def filter(message, context, logs):
+    if message['message_type'] == "heartbeat":
+        return
+    if message['message_type'] == "certificate_update":
+        all_domains = message['data']['leaf_cert']['all_domains']
+        authority = message['data']['chain'][0]['subject']['aggregated']
+        domain = None
+        
+        if all_domains:
+            domain = all_domains[0]
 
-    @staticmethod
-    def filter(message, context, analyzer_context):
-        if message['message_type'] == "heartbeat":
+        if not domain:
             return
 
-        if message['message_type'] == "certificate_update":
-            all_domains = message['data']['leaf_cert']['all_domains']
-            authority = message['data']['chain'][0]['subject']['aggregated']
-            domain = None
-            
-            if all_domains:
-                domain = all_domains[0]
+        if domain.startswith('*.'):
+            domain = domain[2:]
+        
+        score = score_recovered_data(domain, authority)
+        http_code, https_code, open_dir = connect_to_domain(domain)
 
-            if not domain:
-                return
-                
-            # Delete the wildcard
-            if domain.startswith('*.'):
-                domain = domain[2:]
-            
-            score = analyzer_context.scoring.score_recovered_data(domain, authority)
+        if score > 10:
+            logs.write("{} {} {} {} {}\n".format(score, domain, http_code, 
+                                        https_code, open_dir))
+            logs.flush()
 
-            if score > 80:
-                print("[*] {} {}".format(score, domain))
+            print("{} {} {} {} {}".format(score, domain, http_code, 
+                                        https_code, open_dir))
 
-    def analyze(self):
-        certstream.listen_for_events(partial(self.filter, analyzer_context=self), 
-                                    "wss://certstream.calidog.io")
+def analyze():
+    with open("logs", "a") as logs:
+        certstream.listen_for_events(partial(filter, logs=logs), "wss://certstream.calidog.io")
